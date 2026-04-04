@@ -1,0 +1,8 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic-settings==2.7.1
+llama-index==0.14.20
+llama-index-vector-stores-qdrant==0.10.0
+qdrant-client==1.17.1
+python-dotenv==1.0.1
+sse-starlette==2.2.1

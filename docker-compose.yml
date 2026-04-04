@@ -1,0 +1,31 @@
+services:
+  resume-agent-api:
+    build: ./backend
+    container_name: resume-agent-api
+    ports:
+      - "8100:8000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+    networks:
+      - agent-network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: resume-agent-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - agent-network
+
+volumes:
+  qdrant_data:
+
+networks:
+  agent-network:
+    driver: bridge
