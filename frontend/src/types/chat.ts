@@ -6,7 +6,6 @@ export interface ChatMessage {
 export interface ChatRequest {
   message: string;
   session_id: string;
-  conversation_history: ChatMessage[];
 }
 
 export interface SSETokenEvent {
