@@ -1,12 +1,12 @@
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  suggestions?: string[];
 }
 
 export interface ChatRequest {
   message: string;
   session_id: string;
-  conversation_history: ChatMessage[];
 }
 
 export interface SSETokenEvent {

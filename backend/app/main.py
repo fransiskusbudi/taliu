@@ -1,12 +1,25 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import chat, health
 from app.config import settings
+from app.db.connection import init_db, close_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.settings = settings
+    await init_db(app)
+    yield
+    await close_db(app)
+
 
 app = FastAPI(
-    title="Atoue Resume Agent API",
+    title="Taliu Resume Agent API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

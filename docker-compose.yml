@@ -8,6 +8,7 @@ services:
       - ./backend/.env
     depends_on:
       - qdrant
+      - postgres
     restart: unless-stopped
     networks:
       - agent-network
@@ -23,8 +24,24 @@ services:
     networks:
       - agent-network
 
+  postgres:
+    image: postgres:16
+    container_name: taliu-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - agent-network
+
 volumes:
   qdrant_data:
+  postgres_data:
 
 networks:
   agent-network:

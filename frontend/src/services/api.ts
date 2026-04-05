@@ -6,7 +6,8 @@ export async function streamChat(
   request: ChatRequest,
   onToken: (token: string) => void,
   onDone: (sources: string[]) => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  onLimitReached: () => void
 ): Promise<void> {
   let response: Response;
   try {
@@ -21,6 +22,15 @@ export async function streamChat(
   }
 
   if (response.status === 429) {
+    try {
+      const body = await response.json();
+      if (body.detail === "limit_reached") {
+        onLimitReached();
+        return;
+      }
+    } catch {
+      // Nginx rate limit — no JSON body
+    }
     onError("too many requests. please wait a moment and try again.");
     return;
   }
