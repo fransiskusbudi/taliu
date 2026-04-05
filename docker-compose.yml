@@ -1,7 +1,7 @@
 services:
-  resume-agent-api:
+  taliu-api:
     build: ./backend
-    container_name: resume-agent-api
+    container_name: taliu-api
     ports:
       - "8100:8000"
     env_file:
@@ -14,7 +14,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: resume-agent-qdrant
+    container_name: taliu-qdrant
     ports:
       - "6333:6333"
     volumes:
