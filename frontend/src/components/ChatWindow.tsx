@@ -24,8 +24,8 @@ export function ChatWindow() {
     <div className="chat-container">
       <header className="chat-header">
         <div className="chat-header-left">
-          <h1>resume agent</h1>
-          <p>ask me anything about frans's experience</p>
+          <h1>taliu</h1>
+          <p>get to know Frans — ask me anything</p>
         </div>
         <div className="chat-header-actions">
           <button
@@ -47,10 +47,9 @@ export function ChatWindow() {
         {messages.length === 0 && (
           <div className="welcome-section">
             <div className="welcome-text">
-              <h2>hi, i'm frans's ai resume agent</h2>
+              <h2>hi, i'm taliu — Frans's ai agent</h2>
               <p>
-                I can answer questions about his work experience, skills,
-                education, and more. Try one of these:
+                ask me anything about Frans — his work, skills, background, and more. try one of these:
               </p>
             </div>
             <div className="suggested-questions">
