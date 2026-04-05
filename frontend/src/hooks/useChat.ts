@@ -45,7 +45,20 @@ export function useChat() {
 
   useEffect(() => {
     fetchHistory(sessionId.current).then(({ messages, limitReached }) => {
-      if (messages.length > 0) setMessages(messages);
+      if (messages.length > 0) {
+        const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+        const lastAssistantIdx = [...messages].map((m) => m.role).lastIndexOf("assistant");
+        if (lastAssistantIdx !== -1) {
+          const updated = [...messages];
+          updated[lastAssistantIdx] = {
+            ...updated[lastAssistantIdx],
+            suggestions: pickSuggestions(lastUserMsg?.content ?? ""),
+          };
+          setMessages(updated);
+        } else {
+          setMessages(messages);
+        }
+      }
       if (limitReached) setIsLimitReached(true);
     });
   }, []);
