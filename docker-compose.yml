@@ -1,5 +1,5 @@
 services:
-  taliu-api:
+  api:
     build: ./backend
     container_name: taliu-api
     ports:

@@ -8,14 +8,30 @@ export async function streamChat(
   onDone: (sources: string[]) => void,
   onError: (error: string) => void
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+  } catch {
+    onError("unable to reach the server. please check your connection and try again.");
+    return;
+  }
+
+  if (response.status === 429) {
+    onError("too many requests. please wait a moment and try again.");
+    return;
+  }
+
+  if (response.status >= 500) {
+    onError("the server encountered an error. please try again later.");
+    return;
+  }
 
   if (!response.ok) {
-    onError("Failed to connect to the server. Please try again.");
+    onError("something went wrong. please try again.");
     return;
   }
 
