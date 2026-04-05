@@ -10,17 +10,21 @@ interface Props {
 export function InputBar({ onSend, disabled, isLimitReached }: Props) {
   const [input, setInput] = useState("");
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const submit = () => {
     if (!input.trim() || disabled || isLimitReached) return;
     onSend(input.trim());
     setInput("");
   };
 
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    submit();
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      submit();
     }
   };
 
