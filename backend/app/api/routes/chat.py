@@ -23,6 +23,17 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+@router.get("/history/{session_id}")
+async def history(session_id: str, http_request: Request):
+    pool = http_request.app.state.db
+    msgs = await get_history(pool, session_id)
+    limit_reached = await check_limit(pool, session_id, settings.message_limit)
+    return {
+        "messages": [{"role": m.role, "content": m.content} for m in msgs],
+        "limit_reached": limit_reached,
+    }
+
+
 @router.post("/chat")
 async def chat(
     request: ChatRequest,

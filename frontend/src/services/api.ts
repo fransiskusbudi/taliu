@@ -1,6 +1,19 @@
-import type { ChatRequest, SSEEvent } from "../types/chat";
+import type { ChatMessage, ChatRequest, SSEEvent } from "../types/chat";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8100";
+
+export async function fetchHistory(
+  sessionId: string
+): Promise<{ messages: ChatMessage[]; limitReached: boolean }> {
+  try {
+    const res = await fetch(`${API_URL}/api/history/${sessionId}`);
+    if (!res.ok) return { messages: [], limitReached: false };
+    const data = await res.json();
+    return { messages: data.messages, limitReached: data.limit_reached };
+  } catch {
+    return { messages: [], limitReached: false };
+  }
+}
 
 export async function streamChat(
   request: ChatRequest,

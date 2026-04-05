@@ -1,6 +1,16 @@
-import { useCallback, useRef, useState } from "react";
-import { streamChat } from "../services/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchHistory, streamChat } from "../services/api";
 import type { ChatMessage } from "../types/chat";
+
+const SESSION_KEY = "taliu_session_id";
+
+function getOrCreateSessionId(): string {
+  const existing = localStorage.getItem(SESSION_KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  localStorage.setItem(SESSION_KEY, id);
+  return id;
+}
 
 export const QUESTION_POOL = [
   "What is Frans currently working on?",
@@ -31,7 +41,14 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLimitReached, setIsLimitReached] = useState(false);
-  const sessionId = useRef(crypto.randomUUID());
+  const sessionId = useRef(getOrCreateSessionId());
+
+  useEffect(() => {
+    fetchHistory(sessionId.current).then(({ messages, limitReached }) => {
+      if (messages.length > 0) setMessages(messages);
+      if (limitReached) setIsLimitReached(true);
+    });
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -112,7 +129,10 @@ export function useChat() {
   const resetChat = useCallback(() => {
     setMessages([]);
     setError(null);
-    sessionId.current = crypto.randomUUID();
+    setIsLimitReached(false);
+    const newId = crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY, newId);
+    sessionId.current = newId;
   }, []);
 
   return { messages, isStreaming, error, isLimitReached, sendMessage, resetChat };

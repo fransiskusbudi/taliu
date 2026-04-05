@@ -65,7 +65,11 @@ export function ChatWindow() {
         )}
 
         {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} onSuggest={isStreaming ? undefined : sendMessage} />
+          <MessageBubble
+            key={i}
+            message={msg}
+            onSuggest={!isStreaming && i === messages.length - 1 ? sendMessage : undefined}
+          />
         ))}
 
         {error && <div className="error-message">{error}</div>}

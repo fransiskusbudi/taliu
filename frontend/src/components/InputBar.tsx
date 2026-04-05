@@ -1,5 +1,4 @@
-import { useState } from "react";
-import type { FormEvent, KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   onSend: (message: string) => void;
@@ -9,19 +8,25 @@ interface Props {
 
 export function InputBar({ onSend, disabled, isLimitReached }: Props) {
   const [input, setInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   const submit = () => {
     if (!input.trim() || disabled || isLimitReached) return;
     onSend(input.trim());
     setInput("");
+    setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     submit();
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -31,6 +36,7 @@ export function InputBar({ onSend, disabled, isLimitReached }: Props) {
   return (
     <form className="input-bar" onSubmit={handleSubmit}>
       <textarea
+        ref={textareaRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
