@@ -37,3 +37,7 @@ yarn-debug.log*
 
 # Docker volumes
 qdrant_data/
+postgres_data/
+
+# Docs / planning
+docs/
