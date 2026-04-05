@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     qdrant_collection: str = "resume_chunks"
     cors_origins: str = "http://localhost:5173"
     log_level: str = "info"
+    database_url: str = "postgresql://taliu:taliu@postgres:5432/taliu"
+    message_limit: int = 10
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
