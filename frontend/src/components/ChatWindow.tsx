@@ -1,20 +1,18 @@
-import { useEffect, useRef } from "react";
-import { useChat } from "../hooks/useChat";
+import { useEffect, useMemo, useRef } from "react";
+import { useChat, QUESTION_POOL } from "../hooks/useChat";
 import { useTheme } from "../hooks/useTheme";
 import { InputBar } from "./InputBar";
 import { MessageBubble } from "./MessageBubble";
-
-const SUGGESTED_QUESTIONS = [
-  "What is Frans currently working on?",
-  "What are Frans's technical skills?",
-  "Tell me about his experience at Jet Commerce",
-  "What is Frans's educational background?",
-];
 
 export function ChatWindow() {
   const { messages, isStreaming, error, isLimitReached, sendMessage, resetChat } = useChat();
   const { theme, toggleTheme } = useTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const welcomeQuestions = useMemo(
+    () => [...QUESTION_POOL].sort(() => Math.random() - 0.5).slice(0, 4),
+    []
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -53,7 +51,7 @@ export function ChatWindow() {
               </p>
             </div>
             <div className="suggested-questions">
-              {SUGGESTED_QUESTIONS.map((q) => (
+              {welcomeQuestions.map((q) => (
                 <button
                   key={q}
                   className="suggestion-chip"
@@ -67,7 +65,7 @@ export function ChatWindow() {
         )}
 
         {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
+          <MessageBubble key={i} message={msg} onSuggest={isStreaming ? undefined : sendMessage} />
         ))}
 
         {error && <div className="error-message">{error}</div>}

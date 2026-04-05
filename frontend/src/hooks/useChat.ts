@@ -2,6 +2,30 @@ import { useCallback, useRef, useState } from "react";
 import { streamChat } from "../services/api";
 import type { ChatMessage } from "../types/chat";
 
+export const QUESTION_POOL = [
+  "What is Frans currently working on?",
+  "What are Frans's technical skills?",
+  "Tell me about his experience at Jet Commerce",
+  "What is Frans's educational background?",
+  "What did Frans build at Lazada?",
+  "What leadership experience does Frans have?",
+  "What AI tools has Frans worked with?",
+  "What is Frans's experience with RAG systems?",
+  "How does Frans approach data architecture?",
+  "What is Frans's strongest technical skill?",
+  "Tell me about Frans's time at Shopee",
+  "What kind of roles is Frans targeting?",
+  "Has Frans managed a team before?",
+  "What programming languages does Frans use?",
+  "What is Frans's experience with Python?",
+  "Tell me about Frans's MSc at Edinburgh",
+];
+
+function pickSuggestions(lastQuestion: string): string[] {
+  const pool = QUESTION_POOL.filter((q) => q !== lastQuestion);
+  return [...pool].sort(() => Math.random() - 0.5).slice(0, 3);
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -44,6 +68,15 @@ export function useChat() {
         // onDone
         () => {
           setIsStreaming(false);
+          const suggestions = pickSuggestions(content);
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === "assistant") {
+              updated[updated.length - 1] = { ...last, suggestions };
+            }
+            return updated;
+          });
         },
         // onError
         (errorMsg) => {
@@ -73,7 +106,7 @@ export function useChat() {
         }
       );
     },
-    [isStreaming, isLimitReached] // messages removed — history now owned by backend
+    [isStreaming, isLimitReached]
   );
 
   const resetChat = useCallback(() => {

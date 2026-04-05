@@ -219,6 +219,23 @@
   align-items: flex-start;
 }
 
+.message-assistant-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 75%;
+}
+
+.message-assistant-content .message-bubble {
+  max-width: 100%;
+}
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .message-user {
   justify-content: flex-end;
 }

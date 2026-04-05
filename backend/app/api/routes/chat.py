@@ -78,7 +78,7 @@ async def chat(
                 model=settings.openai_model,
             )
 
-            # Signal completion with source metadata
+            # Build sources list
             source_nodes = streaming_response.source_nodes
             sources = []
             for node in source_nodes:
