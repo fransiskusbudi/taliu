@@ -345,6 +345,23 @@
   border-radius: 8px;
 }
 
+/* ===== Limit Banner ===== */
+.limit-banner {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 300;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.limit-banner a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ===== Input Bar ===== */
 .input-bar {
   display: flex;

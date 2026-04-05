@@ -12,7 +12,7 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 export function ChatWindow() {
-  const { messages, isStreaming, error, sendMessage, resetChat } = useChat();
+  const { messages, isStreaming, error, isLimitReached, sendMessage, resetChat } = useChat();
   const { theme, toggleTheme } = useTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +75,18 @@ export function ChatWindow() {
         <div ref={messagesEndRef} />
       </div>
 
-      <InputBar onSend={sendMessage} disabled={isStreaming} />
+      {isLimitReached && (
+        <div className="limit-banner">
+          enjoyed talking? let's connect directly →{" "}
+          <a href="mailto:hi@atoue.io">hi@atoue.io</a>
+          {" · "}
+          <a href="https://linkedin.com/in/fransiskusbudi/" target="_blank" rel="noopener noreferrer">
+            linkedin
+          </a>
+        </div>
+      )}
+
+      <InputBar onSend={sendMessage} disabled={isStreaming} isLimitReached={isLimitReached} />
     </div>
   );
 }
