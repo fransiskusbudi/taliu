@@ -1,0 +1,167 @@
+import { useCallback, useRef, useState } from "react";
+import { createVoiceSocket } from "../services/voiceApi";
+
+export type VoiceStatus = "idle" | "listening" | "processing" | "speaking" | "error";
+
+interface VoiceCallControls {
+  status: VoiceStatus;
+  errorMessage: string | null;
+  startCall: (sessionId: string) => Promise<void>;
+  endCall: () => void;
+}
+
+/**
+ * Manages the full lifecycle of a voice call:
+ * - Requests mic permission
+ * - Opens AudioContext at 16kHz and loads the AudioWorklet processor
+ * - Streams PCM mic audio to the backend via WebSocket
+ * - Receives PCM TTS audio from backend and plays it via Web Audio API
+ * - Drives status state from incoming JSON frames
+ */
+export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
+  const [status, setStatus] = useState<VoiceStatus>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const nextPlayTimeRef = useRef<number>(0);
+
+  const cleanup = useCallback(() => {
+    wsRef.current?.close();
+    wsRef.current = null;
+
+    workletNodeRef.current?.disconnect();
+    workletNodeRef.current = null;
+
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+
+    audioCtxRef.current?.close();
+    audioCtxRef.current = null;
+
+    nextPlayTimeRef.current = 0;
+    setStatus("idle");
+  }, []);
+
+  /**
+   * Schedule a chunk of 24kHz 16-bit mono PCM audio for playback.
+   * Uses the AudioContext clock to queue chunks seamlessly.
+   */
+  const schedulePCMChunk = useCallback((pcmBuffer: ArrayBuffer) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+
+    const int16 = new Int16Array(pcmBuffer);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) {
+      float32[i] = int16[i] / 32767;
+    }
+
+    const audioBuffer = ctx.createBuffer(1, float32.length, 24000);
+    audioBuffer.copyToChannel(float32, 0);
+
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(ctx.destination);
+
+    const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
+    source.start(startTime);
+    nextPlayTimeRef.current = startTime + audioBuffer.duration;
+  }, []);
+
+  const startCall = useCallback(async (sessionId: string) => {
+    setErrorMessage(null);
+
+    // Request microphone permission
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch {
+      setErrorMessage("Microphone access is required to call Taliu.");
+      return;
+    }
+    micStreamRef.current = stream;
+
+    // Create AudioContext at 16kHz — browser handles downsampling from device rate
+    const ctx = new AudioContext({ sampleRate: 16000 });
+    audioCtxRef.current = ctx;
+
+    // Load and connect the AudioWorklet processor
+    await ctx.audioWorklet.addModule("/audio-processor.js");
+    const source = ctx.createMediaStreamSource(stream);
+    const workletNode = new AudioWorkletNode(ctx, "mic-processor");
+    workletNodeRef.current = workletNode;
+
+    // Open WebSocket
+    const ws = createVoiceSocket(sessionId);
+    wsRef.current = ws;
+
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+      // Start forwarding mic audio to the backend
+      workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(e.data);
+        }
+      };
+      source.connect(workletNode);
+      // Connect worklet to a silent gain node (gain=0) — required to keep the
+      // worklet processing without feeding mic audio back through the speakers
+      const silentGain = ctx.createGain();
+      silentGain.gain.value = 0;
+      workletNode.connect(silentGain);
+      silentGain.connect(ctx.destination);
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      if (event.data instanceof ArrayBuffer) {
+        // Binary frame = TTS PCM audio chunk
+        schedulePCMChunk(event.data);
+      } else if (typeof event.data === "string") {
+        // Text frame = status or error
+        try {
+          const msg = JSON.parse(event.data) as
+            | { type: "status"; value: VoiceStatus }
+            | { type: "error"; message: string };
+
+          if (msg.type === "status") {
+            setStatus(msg.value);
+          } else if (msg.type === "error") {
+            if (msg.message === "limit_reached") {
+              onLimitReached();
+            } else if (msg.message === "inactivity") {
+              setErrorMessage("Call ended due to inactivity.");
+            } else {
+              setErrorMessage("Something went wrong. Please try again.");
+            }
+            cleanup();
+          }
+        } catch {
+          // Ignore malformed frames
+        }
+      }
+    };
+
+    ws.onerror = () => {
+      setErrorMessage("Couldn't connect. Please try again.");
+      cleanup();
+    };
+
+    ws.onclose = () => {
+      // Unexpected close (not triggered by our own cleanup)
+      if (wsRef.current !== null) {
+        setErrorMessage("Call disconnected.");
+        cleanup();
+      }
+    };
+  }, [cleanup, schedulePCMChunk, onLimitReached]);
+
+  const endCall = useCallback(() => {
+    cleanup();
+  }, [cleanup]);
+
+  return { status, errorMessage, startCall, endCall };
+}
