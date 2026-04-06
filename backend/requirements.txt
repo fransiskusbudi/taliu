@@ -7,3 +7,5 @@ qdrant-client==1.17.1
 python-dotenv==1.0.1
 sse-starlette==2.2.1
 asyncpg==0.30.0
+llama-index-retrievers-bm25==0.6.5
+pytest==8.3.5

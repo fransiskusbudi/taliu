@@ -91,6 +91,8 @@ async def chat(
 
             # Build sources list
             source_nodes = streaming_response.source_nodes
+            # for i, node in enumerate(source_nodes):
+            #     print(f"[retrieval] node {i+1}: score={node.score:.3f} section={node.metadata.get('section')} company={node.metadata.get('company','')}", flush=True)
             sources = []
             for node in source_nodes:
                 meta = node.metadata
