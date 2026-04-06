@@ -475,3 +475,191 @@
     max-width: 85%;
   }
 }
+
+/* ===== Call Header Button ===== */
+.call-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.call-header-btn:hover:not(:disabled) {
+  background: var(--chip-hover);
+  border-color: var(--text-secondary);
+}
+
+.call-header-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.call-header-btn-icon {
+  font-size: 0.85rem;
+}
+
+/* ===== Call Welcome Card ===== */
+.call-welcome-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 16px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  color: var(--text-primary);
+}
+
+.call-welcome-card:hover {
+  background: var(--chip-hover);
+  border-color: var(--text-secondary);
+}
+
+.call-welcome-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.call-welcome-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.call-welcome-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.call-welcome-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 300;
+}
+
+/* ===== Call Overlay ===== */
+.call-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+}
+
+/* Pulse circle with avatar */
+.call-pulse {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-pulse-ring {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.call-pulse-ring--delay {
+  animation-delay: 1s;
+}
+
+.call-pulse--listening .call-pulse-ring {
+  border-color: var(--accent);
+}
+
+.call-pulse--speaking .call-pulse-ring {
+  border-color: var(--text-primary);
+  animation-duration: 1s;
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.call-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  color: var(--avatar-text);
+  font-family: 'DM Mono', monospace;
+  font-size: 2.5rem;
+  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.1em;
+}
+
+/* Status text */
+.call-status-text {
+  font-size: 0.85rem;
+  font-weight: 300;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  text-align: center;
+  min-height: 1.2em;
+}
+
+/* Call action buttons */
+.call-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.call-btn {
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.2s ease;
+}
+
+.call-btn:hover {
+  opacity: 0.85;
+}
+
+.call-btn--end {
+  background: #e53e3e;
+  color: #fff;
+}
+
+.call-btn--retry {
+  background: var(--button-bg);
+  color: var(--button-text);
+}
