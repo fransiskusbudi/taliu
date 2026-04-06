@@ -34,6 +34,7 @@ def build_chat_engine() -> CondensePlusContextChatEngine:
         model=settings.openai_model,
         api_key=settings.openai_api_key,
         temperature=0.3,
+        additional_kwargs={"stream_options": {"include_usage": True}},
     )
     Settings.llm = llm
 

@@ -41,7 +41,11 @@ async def chat(
     chat_engine: CondensePlusContextChatEngine = Depends(get_chat_engine),
 ):
     pool = http_request.app.state.db
-    ip = http_request.client.host if http_request.client else "unknown"
+    ip = (
+        http_request.headers.get("x-real-ip")
+        or http_request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or (http_request.client.host if http_request.client else "unknown")
+    )
     user_agent = http_request.headers.get("user-agent", "")
 
     await get_or_create_session(pool, request.session_id, ip, user_agent)
@@ -70,13 +74,15 @@ async def chat(
 
             latency_ms = int((time.monotonic() - start_time) * 1000)
 
-            # Extract token counts if available
+            # Extract token counts from OpenAI usage chunk (stream_options.include_usage)
             prompt_tokens = None
             completion_tokens = None
-            if hasattr(streaming_response, "response_metadata"):
-                meta = streaming_response.response_metadata
-                prompt_tokens = meta.get("prompt_tokens")
-                completion_tokens = meta.get("completion_tokens")
+            raw = getattr(streaming_response, "raw", None)
+            if raw:
+                usage = getattr(raw, "usage", None)
+                if usage:
+                    prompt_tokens = getattr(usage, "prompt_tokens", None)
+                    completion_tokens = getattr(usage, "completion_tokens", None)
 
             await save_messages(
                 pool=pool,
