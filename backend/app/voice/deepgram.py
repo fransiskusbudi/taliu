@@ -23,7 +23,7 @@ class DeepgramSTT:
     async def start(self) -> None:
         """Open the Deepgram WebSocket and start the receive loop."""
         self._cm = self._client.listen.v1.connect(
-            model="nova-2",
+            model="nova-3",
             encoding="linear16",
             sample_rate=16000,
             utterance_end_ms=600,
