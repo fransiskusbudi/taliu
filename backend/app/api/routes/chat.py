@@ -18,6 +18,7 @@ from app.db.session import (
     save_messages,
 )
 from app.models.chat import ChatRequest
+from app.rag.engine import token_counter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ async def chat(
         full_response = ""
 
         try:
+            token_counter.reset_counts()
             streaming_response = await chat_engine.astream_chat(request.message)
 
             async for token in streaming_response.async_response_gen():
@@ -74,15 +76,8 @@ async def chat(
 
             latency_ms = int((time.monotonic() - start_time) * 1000)
 
-            # Extract token counts from OpenAI usage chunk (stream_options.include_usage)
-            prompt_tokens = None
-            completion_tokens = None
-            raw = getattr(streaming_response, "raw", None)
-            if raw:
-                usage = getattr(raw, "usage", None)
-                if usage:
-                    prompt_tokens = getattr(usage, "prompt_tokens", None)
-                    completion_tokens = getattr(usage, "completion_tokens", None)
+            prompt_tokens = token_counter.prompt_llm_token_count
+            completion_tokens = token_counter.completion_llm_token_count
 
             await save_messages(
                 pool=pool,

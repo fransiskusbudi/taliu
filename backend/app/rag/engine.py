@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
+import tiktoken
 from llama_index.core import Settings, VectorStoreIndex
+from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
 from llama_index.core.chat_engine import CondensePlusContextChatEngine
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.retrievers import QueryFusionRetriever
@@ -19,6 +21,12 @@ from app.rag.prompt import SYSTEM_PROMPT
 
 RESUME_PATH = Path(__file__).parents[1] / "ingestion" / "data" / "resume.md"
 
+# Module-level token counter — reset before each request, read after
+token_counter = TokenCountingHandler(
+    tokenizer=tiktoken.get_encoding("cl100k_base").encode,
+    verbose=False,
+)
+
 
 def build_chat_engine() -> CondensePlusContextChatEngine:
     """Build a LlamaIndex chat engine backed by hybrid (BM25 + semantic) retrieval."""
@@ -34,9 +42,9 @@ def build_chat_engine() -> CondensePlusContextChatEngine:
         model=settings.openai_model,
         api_key=settings.openai_api_key,
         temperature=0.3,
-        additional_kwargs={"stream_options": {"include_usage": True}},
     )
     Settings.llm = llm
+    Settings.callback_manager = CallbackManager([token_counter])
 
     # Connect to Qdrant (both sync and async clients for streaming support)
     qdrant_client = QdrantClient(
