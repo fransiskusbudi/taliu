@@ -9,5 +9,5 @@ sse-starlette==2.2.1
 asyncpg==0.30.0
 llama-index-retrievers-bm25==0.6.5
 pytest==8.3.5
-deepgram-sdk>=3.0.0
+deepgram-sdk==6.1.1
 openai>=1.0.0
