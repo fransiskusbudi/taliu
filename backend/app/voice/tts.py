@@ -44,13 +44,14 @@ class SentenceBuffer:
 
 
 async def stream_tts(text: str, api_key: str) -> AsyncIterator[bytes]:
-    """Stream 24kHz 16-bit mono PCM audio chunks for the given text."""
+    """Yield 24kHz 16-bit mono PCM audio for the given text in 4096-byte chunks."""
     client = AsyncOpenAI(api_key=api_key)
-    async with client.audio.speech.with_streaming_response.create(
+    response = await client.audio.speech.create(
         model="tts-1",
         voice="alloy",
         input=text,
         response_format="pcm",
-    ) as response:
-        async for chunk in response.iter_bytes(chunk_size=4096):
-            yield chunk
+    )
+    data = response.content
+    for i in range(0, len(data), 4096):
+        yield data[i : i + 4096]

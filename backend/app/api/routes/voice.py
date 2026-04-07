@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 
 INACTIVITY_TIMEOUT = 30.0  # seconds — close call after 30s of silence
 
+VOICE_INSTRUCTION = (
+    "[This is a voice conversation — respond in plain spoken language. "
+    "No markdown, no bullet points, no headers, no bold/italic. "
+    "Keep answers brief (2-3 sentences). Speak naturally as if on a phone call.]\n\n"
+)
+
 
 @router.websocket("/voice")
 async def voice_endpoint(
@@ -29,41 +35,65 @@ async def voice_endpoint(
 ):
     await websocket.accept()
 
-    pool = websocket.app.state.db
-    ip = websocket.client.host if websocket.client else "unknown"
-    user_agent = websocket.headers.get("user-agent", "")
+    try:
+        pool = websocket.app.state.db
+        ip = websocket.client.host if websocket.client else "unknown"
+        user_agent = websocket.headers.get("user-agent", "")
 
-    await get_or_create_session(pool, session_id, ip, user_agent)
+        await get_or_create_session(pool, session_id, ip, user_agent)
 
-    # Check message limit before starting
-    if await check_limit(pool, session_id, settings.message_limit):
-        await websocket.send_text(json.dumps({"type": "error", "message": "limit_reached"}))
-        await websocket.close()
+        # Check message limit before starting
+        if await check_limit(pool, session_id, settings.message_limit):
+            await websocket.send_text(json.dumps({"type": "error", "message": "limit_reached"}))
+            await websocket.close()
+            return
+
+        # Load session history into chat engine memory
+        history = await get_history(pool, session_id)
+        chat_engine.reset()
+        for msg in history:
+            role = MessageRole.USER if msg.role == "user" else MessageRole.ASSISTANT
+            chat_engine._memory.put(LlamaChatMessage(role=role, content=msg.content))
+
+        dg = DeepgramSTT(settings.deepgram_api_key)
+        await dg.start()
+    except Exception as e:
+        logger.error(f"[voice] setup failed: {e}", exc_info=True)
+        try:
+            await websocket.send_text(json.dumps({"type": "error", "message": "setup_failed"}))
+            await websocket.close()
+        except Exception:
+            pass
         return
-
-    # Load session history into chat engine memory
-    history = await get_history(pool, session_id)
-    chat_engine.reset()
-    for msg in history:
-        role = MessageRole.USER if msg.role == "user" else MessageRole.ASSISTANT
-        chat_engine._memory.put(LlamaChatMessage(role=role, content=msg.content))
-
-    dg = DeepgramSTT(settings.deepgram_api_key)
-    await dg.start()
 
     # Set by audio_forwarder when audio arrives while TTS is playing
     cancel_tts = asyncio.Event()
+    ws_closed = False
     is_speaking = False
 
+    async def safe_send_text(data: str) -> None:
+        if not ws_closed:
+            try:
+                await websocket.send_text(data)
+            except Exception:
+                pass
+
+    async def safe_send_bytes(data: bytes) -> None:
+        if not ws_closed:
+            try:
+                await websocket.send_bytes(data)
+            except Exception:
+                pass
+
     async def send_status(value: str) -> None:
-        await websocket.send_text(json.dumps({"type": "status", "value": value}))
+        await safe_send_text(json.dumps({"type": "status", "value": value}))
 
     async def send_error(message: str) -> None:
-        await websocket.send_text(json.dumps({"type": "error", "message": message}))
+        await safe_send_text(json.dumps({"type": "error", "message": message}))
 
     async def audio_forwarder() -> None:
         """Read audio binary frames from the WebSocket and forward to Deepgram."""
-        nonlocal is_speaking
+        nonlocal is_speaking, ws_closed
         try:
             while True:
                 try:
@@ -76,15 +106,17 @@ async def voice_endpoint(
 
                 msg_type = data.get("type")
                 if msg_type == "websocket.disconnect":
+                    ws_closed = True
+                    cancel_tts.set()
                     return
 
                 if data.get("bytes"):
-                    if is_speaking:
-                        cancel_tts.set()  # Interrupt active TTS
+                    # TODO: add barge-in with voice activity detection
                     await dg.send(data["bytes"])
 
         except WebSocketDisconnect:
-            pass
+            ws_closed = True
+            cancel_tts.set()
 
     async def pipeline_runner() -> None:
         """Wait for transcripts from Deepgram, run RAG + TTS pipeline per turn."""
@@ -106,10 +138,19 @@ async def voice_endpoint(
             start_time = time.monotonic()
 
             try:
-                streaming_response = await chat_engine.astream_chat(transcript)
+                t0 = time.monotonic()
+                logger.info(f"[voice] got transcript: {transcript!r}")
+                streaming_response = await chat_engine.astream_chat(
+                    VOICE_INSTRUCTION + transcript
+                )
+                logger.info(f"[voice] RAG + LLM stream init: {(time.monotonic() - t0) * 1000:.0f}ms")
                 sentence_buf = SentenceBuffer(min_chars=30)
+                first_token = True
 
                 async for token in streaming_response.async_response_gen():
+                    if first_token:
+                        logger.info(f"[voice] LLM first token: {(time.monotonic() - t0) * 1000:.0f}ms")
+                        first_token = False
                     if cancel_tts.is_set():
                         break
                     full_response += token
@@ -119,10 +160,12 @@ async def voice_endpoint(
                             break
                         is_speaking = True
                         await send_status("speaking")
+                        tts_start = time.monotonic()
                         async for audio_chunk in stream_tts(sentence, settings.openai_api_key):
                             if cancel_tts.is_set():
                                 break
-                            await websocket.send_bytes(audio_chunk)
+                            await safe_send_bytes(audio_chunk)
+                        logger.info(f"[voice] TTS '{sentence[:40]}': {(time.monotonic() - tts_start) * 1000:.0f}ms")
 
                 # Flush any remaining buffered text
                 if not cancel_tts.is_set():
@@ -130,13 +173,17 @@ async def voice_endpoint(
                     if remaining:
                         is_speaking = True
                         await send_status("speaking")
+                        tts_start = time.monotonic()
                         async for audio_chunk in stream_tts(remaining, settings.openai_api_key):
                             if cancel_tts.is_set():
                                 break
-                            await websocket.send_bytes(audio_chunk)
+                            await safe_send_bytes(audio_chunk)
+                        logger.info(f"[voice] TTS flush '{remaining[:40]}': {(time.monotonic() - tts_start) * 1000:.0f}ms")
+
+                logger.info(f"[voice] total turn: {(time.monotonic() - t0) * 1000:.0f}ms")
 
             except Exception as e:
-                logger.error(f"Voice pipeline error: {e}")
+                logger.error(f"Voice pipeline error: {e}", exc_info=True)
                 await send_error("pipeline_error")
                 return
             finally:
@@ -164,8 +211,10 @@ async def voice_endpoint(
             await send_status("listening")
 
     try:
+        logger.info(f"[voice] call started session={session_id}")
         await asyncio.gather(audio_forwarder(), pipeline_runner())
     except Exception as e:
-        logger.error(f"Voice endpoint error: {e}")
+        logger.error(f"Voice endpoint error: {e}", exc_info=True)
     finally:
+        logger.info(f"[voice] call ended session={session_id}")
         await dg.finish()

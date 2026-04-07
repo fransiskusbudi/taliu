@@ -23,7 +23,8 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
+  const micCtxRef = useRef<AudioContext | null>(null);
+  const playCtxRef = useRef<AudioContext | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
@@ -38,8 +39,11 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
 
-    audioCtxRef.current?.close();
-    audioCtxRef.current = null;
+    micCtxRef.current?.close();
+    micCtxRef.current = null;
+
+    playCtxRef.current?.close();
+    playCtxRef.current = null;
 
     nextPlayTimeRef.current = 0;
     setStatus("idle");
@@ -50,8 +54,9 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
    * Uses the AudioContext clock to queue chunks seamlessly.
    */
   const schedulePCMChunk = useCallback((pcmBuffer: ArrayBuffer) => {
-    const ctx = audioCtxRef.current;
+    const ctx = playCtxRef.current;
     if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume();
 
     const int16 = new Int16Array(pcmBuffer);
     const float32 = new Float32Array(int16.length);
@@ -84,14 +89,17 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
     }
     micStreamRef.current = stream;
 
-    // Create AudioContext at 16kHz — browser handles downsampling from device rate
-    const ctx = new AudioContext({ sampleRate: 16000 });
-    audioCtxRef.current = ctx;
+    // Separate AudioContexts: 16kHz for mic capture, default rate for playback
+    const micCtx = new AudioContext({ sampleRate: 16000 });
+    micCtxRef.current = micCtx;
+
+    const playCtx = new AudioContext();
+    playCtxRef.current = playCtx;
 
     // Load and connect the AudioWorklet processor
-    await ctx.audioWorklet.addModule("/audio-processor.js");
-    const source = ctx.createMediaStreamSource(stream);
-    const workletNode = new AudioWorkletNode(ctx, "mic-processor");
+    await micCtx.audioWorklet.addModule("/audio-processor.js");
+    const source = micCtx.createMediaStreamSource(stream);
+    const workletNode = new AudioWorkletNode(micCtx, "mic-processor");
     workletNodeRef.current = workletNode;
 
     // Open WebSocket
@@ -110,10 +118,10 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
       source.connect(workletNode);
       // Connect worklet to a silent gain node (gain=0) — required to keep the
       // worklet processing without feeding mic audio back through the speakers
-      const silentGain = ctx.createGain();
+      const silentGain = micCtx.createGain();
       silentGain.gain.value = 0;
       workletNode.connect(silentGain);
-      silentGain.connect(ctx.destination);
+      silentGain.connect(micCtx.destination);
     };
 
     ws.onmessage = (event: MessageEvent) => {
