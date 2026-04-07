@@ -1,4 +1,4 @@
-"""Deepgram Nova-2 live transcription client (deepgram-sdk v6)."""
+"""Deepgram Nova-3 live transcription client (deepgram-sdk v6)."""
 
 import asyncio
 import logging
@@ -26,8 +26,7 @@ class DeepgramSTT:
             model="nova-3",
             encoding="linear16",
             sample_rate=16000,
-            utterance_end_ms=600,
-            interim_results=False,
+            endpointing=600,
         )
         self._socket = await self._cm.__aenter__()
         self._listen_task = asyncio.create_task(self._receive_loop())
