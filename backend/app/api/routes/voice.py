@@ -4,12 +4,11 @@ import asyncio
 import json
 import logging
 import time
+from pathlib import Path
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
-from llama_index.core.chat_engine import CondensePlusContextChatEngine
-from llama_index.core.llms import ChatMessage as LlamaChatMessage, MessageRole
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from openai import AsyncOpenAI
 
-from app.api.dependencies import get_chat_engine
 from app.config import settings
 from app.db.session import get_or_create_session, check_limit, get_history, save_messages
 from app.voice.deepgram import DeepgramSTT
@@ -19,19 +18,39 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 INACTIVITY_TIMEOUT = 30.0  # seconds — close call after 30s of silence
+RESUME_PATH = Path(__file__).parents[2] / "ingestion" / "data" / "resume.md"
 
-VOICE_INSTRUCTION = (
-    "[This is a voice conversation — respond in plain spoken language. "
-    "No markdown, no bullet points, no headers, no bold/italic. "
-    "Keep answers brief (2-3 sentences). Speak naturally as if on a phone call.]\n\n"
-)
+VOICE_SYSTEM_PROMPT = """\
+You are Taliu, a friendly voice assistant who answers questions about \
+Fransiskus Budi Kurnia Agung's (Frans) professional background.
+
+Rules:
+- This is a VOICE conversation. Speak naturally like a real person on a phone call.
+- NEVER use markdown, bullet points, headers, bold, italic, or any formatting.
+- Keep answers to 2-3 sentences. Be concise but warm.
+- Speak in third person about Frans — you are not Frans.
+- Base answers strictly on the resume below. If you don't know, say so honestly.
+- For off-topic questions, gently redirect to Frans's professional background.
+- When listing things, use natural speech like "first... second... and also..."
+
+Frans's Resume:
+{resume}
+"""
+
+
+def _load_system_prompt() -> str:
+    resume_text = RESUME_PATH.read_text()
+    return VOICE_SYSTEM_PROMPT.format(resume=resume_text)
+
+
+# Load once at import time
+_system_prompt = _load_system_prompt()
 
 
 @router.websocket("/voice")
 async def voice_endpoint(
     websocket: WebSocket,
     session_id: str,
-    chat_engine: CondensePlusContextChatEngine = Depends(get_chat_engine),
 ):
     await websocket.accept()
 
@@ -42,18 +61,16 @@ async def voice_endpoint(
 
         await get_or_create_session(pool, session_id, ip, user_agent)
 
-        # Check message limit before starting
         if await check_limit(pool, session_id, settings.message_limit):
             await websocket.send_text(json.dumps({"type": "error", "message": "limit_reached"}))
             await websocket.close()
             return
 
-        # Load session history into chat engine memory
+        # Load conversation history as OpenAI messages
         history = await get_history(pool, session_id)
-        chat_engine.reset()
+        messages: list[dict] = [{"role": "system", "content": _system_prompt}]
         for msg in history:
-            role = MessageRole.USER if msg.role == "user" else MessageRole.ASSISTANT
-            chat_engine._memory.put(LlamaChatMessage(role=role, content=msg.content))
+            messages.append({"role": msg.role, "content": msg.content})
 
         dg = DeepgramSTT(settings.deepgram_api_key)
         await dg.start()
@@ -66,10 +83,9 @@ async def voice_endpoint(
             pass
         return
 
-    # Set by audio_forwarder when audio arrives while TTS is playing
+    openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
     cancel_tts = asyncio.Event()
     ws_closed = False
-    is_speaking = False
 
     async def safe_send_text(data: str) -> None:
         if not ws_closed:
@@ -92,8 +108,8 @@ async def voice_endpoint(
         await safe_send_text(json.dumps({"type": "error", "message": message}))
 
     async def audio_forwarder() -> None:
-        """Read audio binary frames from the WebSocket and forward to Deepgram."""
-        nonlocal is_speaking, ws_closed
+        """Forward mic audio from WebSocket to Deepgram."""
+        nonlocal ws_closed
         try:
             while True:
                 try:
@@ -102,6 +118,7 @@ async def voice_endpoint(
                     )
                 except asyncio.TimeoutError:
                     await send_error("inactivity")
+                    cancel_tts.set()
                     return
 
                 msg_type = data.get("type")
@@ -110,87 +127,149 @@ async def voice_endpoint(
                     cancel_tts.set()
                     return
 
-                if data.get("bytes"):
-                    # TODO: add barge-in with voice activity detection
-                    await dg.send(data["bytes"])
+                audio_bytes = data.get("bytes")
+                if audio_bytes:
+                    await dg.send(audio_bytes)
 
         except WebSocketDisconnect:
             ws_closed = True
             cancel_tts.set()
 
     async def pipeline_runner() -> None:
-        """Wait for transcripts from Deepgram, run RAG + TTS pipeline per turn."""
-        nonlocal is_speaking
+        """Continuous listening pipeline — barge-in is detected by a new
+        transcript arriving while the response is still being generated/played."""
 
         await send_status("listening")
 
+        transcript = await dg.get_transcript(timeout=INACTIVITY_TIMEOUT + 5)
+        if transcript is None:
+            return
+
         while True:
-            transcript = await dg.get_transcript(timeout=INACTIVITY_TIMEOUT + 5)
-            if transcript is None:
-                return  # Timeout — audio_forwarder will have sent inactivity error
-
-            # New turn: clear any previous cancellation
             cancel_tts.clear()
-
+            # Stop any residual frontend playback from previous turn
+            await safe_send_text(json.dumps({"type": "interrupt"}))
             await send_status("processing")
 
             full_response = ""
             start_time = time.monotonic()
+            t0 = start_time
 
             try:
-                t0 = time.monotonic()
-                logger.info(f"[voice] got transcript: {transcript!r}")
-                streaming_response = await chat_engine.astream_chat(
-                    VOICE_INSTRUCTION + transcript
-                )
-                logger.info(f"[voice] RAG + LLM stream init: {(time.monotonic() - t0) * 1000:.0f}ms")
-                sentence_buf = SentenceBuffer(min_chars=30)
-                first_token = True
+                logger.info(f"[voice] transcript: {transcript!r}")
+                messages.append({"role": "user", "content": transcript})
 
-                async for token in streaming_response.async_response_gen():
-                    if first_token:
-                        logger.info(f"[voice] LLM first token: {(time.monotonic() - t0) * 1000:.0f}ms")
-                        first_token = False
-                    if cancel_tts.is_set():
-                        break
-                    full_response += token
-                    sentences = sentence_buf.feed(token)
-                    for sentence in sentences:
+                stream = await openai_client.chat.completions.create(
+                    model=settings.openai_model,
+                    messages=messages,
+                    temperature=0.3,
+                    stream=True,
+                )
+
+                tts_queue: asyncio.Queue = asyncio.Queue()
+
+                async def fetch_tts(text: str) -> bytes:
+                    audio = b""
+                    async for chunk in stream_tts(text, settings.openai_api_key):
+                        audio += chunk
+                    return audio
+
+                async def llm_producer() -> None:
+                    nonlocal full_response
+                    sentence_buf = SentenceBuffer(min_chars=20)
+                    first_token = True
+                    async for chunk in stream:
+                        delta = chunk.choices[0].delta
+                        if delta.content is None:
+                            continue
+                        token = delta.content
+                        if first_token:
+                            logger.info(f"[voice] first token: {(time.monotonic() - t0) * 1000:.0f}ms")
+                            first_token = False
                         if cancel_tts.is_set():
                             break
-                        is_speaking = True
-                        await send_status("speaking")
-                        tts_start = time.monotonic()
-                        async for audio_chunk in stream_tts(sentence, settings.openai_api_key):
+                        full_response += token
+                        for sentence in sentence_buf.feed(token):
                             if cancel_tts.is_set():
                                 break
-                            await safe_send_bytes(audio_chunk)
-                        logger.info(f"[voice] TTS '{sentence[:40]}': {(time.monotonic() - tts_start) * 1000:.0f}ms")
-
-                # Flush any remaining buffered text
-                if not cancel_tts.is_set():
+                            task = asyncio.create_task(fetch_tts(sentence))
+                            await tts_queue.put((sentence, task))
                     remaining = sentence_buf.flush()
-                    if remaining:
-                        is_speaking = True
+                    if remaining and not cancel_tts.is_set():
+                        task = asyncio.create_task(fetch_tts(remaining))
+                        await tts_queue.put((remaining, task))
+                    await tts_queue.put(None)
+
+                async def audio_sender() -> None:
+                    while True:
+                        item = await tts_queue.get()
+                        if item is None:
+                            break
+                        sentence, task = item
+                        if cancel_tts.is_set():
+                            task.cancel()
+                            continue
+
+                        # Wait for TTS, but abort immediately on cancel
+                        cancel_wait = asyncio.ensure_future(cancel_tts.wait())
+                        done, _ = await asyncio.wait(
+                            [task, cancel_wait], return_when=asyncio.FIRST_COMPLETED,
+                        )
+                        cancel_wait.cancel()
+                        if cancel_tts.is_set():
+                            task.cancel()
+                            continue
+
+                        audio_data = task.result()
+                        logger.info(f"[voice] TTS '{sentence[:40]}': {(time.monotonic() - t0) * 1000:.0f}ms")
                         await send_status("speaking")
-                        tts_start = time.monotonic()
-                        async for audio_chunk in stream_tts(remaining, settings.openai_api_key):
+                        for i in range(0, len(audio_data), 4096):
                             if cancel_tts.is_set():
                                 break
-                            await safe_send_bytes(audio_chunk)
-                        logger.info(f"[voice] TTS flush '{remaining[:40]}': {(time.monotonic() - tts_start) * 1000:.0f}ms")
+                            await safe_send_bytes(audio_data[i : i + 4096])
 
-                logger.info(f"[voice] total turn: {(time.monotonic() - t0) * 1000:.0f}ms")
+                # Race: response pipeline vs next user transcript (barge-in)
+                async def respond() -> None:
+                    await asyncio.gather(llm_producer(), audio_sender())
+
+                response_task = asyncio.create_task(respond())
+                next_transcript_task = asyncio.create_task(
+                    dg.get_transcript(timeout=INACTIVITY_TIMEOUT + 5)
+                )
+
+                done, _ = await asyncio.wait(
+                    [response_task, next_transcript_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                next_transcript = None
+
+                if next_transcript_task in done:
+                    # New transcript arrived during response — barge-in
+                    next_transcript = next_transcript_task.result()
+                    cancel_tts.set()
+                    logger.info("[voice] barge-in: user spoke during response")
+                    try:
+                        await asyncio.wait_for(response_task, timeout=3.0)
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        response_task.cancel()
+                    except Exception:
+                        pass
+                else:
+                    # Response completed normally
+                    next_transcript_task.cancel()
+                    response_task.result()  # re-raise if exception
 
             except Exception as e:
                 logger.error(f"Voice pipeline error: {e}", exc_info=True)
                 await send_error("pipeline_error")
                 return
-            finally:
-                is_speaking = False
 
-            # Persist the turn to the database
+            logger.info(f"[voice] total turn: {(time.monotonic() - t0) * 1000:.0f}ms")
+
+            # Save response to conversation history
             if full_response:
+                messages.append({"role": "assistant", "content": full_response})
                 latency_ms = int((time.monotonic() - start_time) * 1000)
                 await save_messages(
                     pool=pool,
@@ -203,12 +282,21 @@ async def voice_endpoint(
                     model=settings.openai_model,
                 )
 
-            # Check limit after saving
             if await check_limit(pool, session_id, settings.message_limit):
                 await send_error("limit_reached")
                 return
 
-            await send_status("listening")
+            if next_transcript is not None:
+                # Barge-in — immediately process the new transcript
+                transcript = next_transcript
+                if transcript is None:
+                    return
+            else:
+                # Normal — wait for next transcript
+                await send_status("listening")
+                transcript = await dg.get_transcript(timeout=INACTIVITY_TIMEOUT + 5)
+                if transcript is None:
+                    return
 
     try:
         logger.info(f"[voice] call started session={session_id}")

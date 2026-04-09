@@ -13,7 +13,7 @@ function getSessionId(): string {
 }
 
 export function ChatWindow() {
-  const { messages, isStreaming, error, isLimitReached, sendMessage, resetChat } = useChat();
+  const { messages, isStreaming, error, isLimitReached, sendMessage, resetChat, markLimitReached } = useChat();
   const { theme, toggleTheme } = useTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isCallOpen, setIsCallOpen] = useState(false);
@@ -21,6 +21,7 @@ export function ChatWindow() {
   const { status: callStatus, errorMessage: callError, startCall, endCall } = useVoiceCall(() => {
     // voice turn hit the message limit
     setIsCallOpen(false);
+    markLimitReached();
   });
 
   const welcomeQuestions = useMemo(
@@ -49,15 +50,6 @@ export function ChatWindow() {
 
   return (
     <div className="chat-container">
-      {isCallOpen && (
-        <CallOverlay
-          status={callStatus}
-          errorMessage={callError}
-          onEnd={handleEndCall}
-          onRetry={handleRetryCall}
-        />
-      )}
-
       <header className="chat-header">
         <div className="chat-header-left">
           <h1>taliu</h1>
@@ -67,7 +59,7 @@ export function ChatWindow() {
           <button
             className="call-header-btn"
             onClick={handleStartCall}
-            disabled={isLimitReached}
+            disabled={isLimitReached || isCallOpen}
             title="Start a voice call with Taliu"
           >
             <span className="call-header-btn-icon">✆</span>
@@ -88,65 +80,71 @@ export function ChatWindow() {
         </div>
       </header>
 
-      <div className="chat-messages">
-        {messages.length === 0 && (
-          <div className="welcome-section">
-            <div className="welcome-text">
-              <h2>hi, i'm taliu — Frans's ai agent</h2>
-              <p>
-                ask me anything about Frans — his work, skills, background, and more. try one of these:
-              </p>
-            </div>
+      <div className="chat-body">
+        {isCallOpen && (
+          <CallOverlay
+            status={callStatus}
+            errorMessage={callError}
+            onEnd={handleEndCall}
+            onRetry={handleRetryCall}
+          />
+        )}
 
-            {!isLimitReached && (
-              <button className="call-welcome-card" onClick={handleStartCall}>
-                <span className="call-welcome-icon">✆</span>
-                <span className="call-welcome-text">
-                  <span className="call-welcome-title">Call Taliu</span>
-                  <span className="call-welcome-subtitle">Talk to me directly</span>
-                </span>
-              </button>
-            )}
+        <div className="chat-messages">
+          {messages.length === 0 && (
+            <div className="welcome-section">
+              <div className="welcome-text">
+                <h2>hi, i'm taliu — Frans's ai agent</h2>
+                <p>
+                  ask me anything about Frans — his work, skills, background, and more. try one of these:
+                </p>
+              </div>
 
-            <div className="suggested-questions">
-              {welcomeQuestions.map((q) => (
-                <button
-                  key={q}
-                  className="suggestion-chip"
-                  onClick={() => sendMessage(q)}
-                >
-                  {q}
-                </button>
-              ))}
+              <div className="suggested-questions">
+                {!isLimitReached && (
+                  <button className="suggestion-chip suggestion-chip--call" onClick={handleStartCall}>
+                    ✆ Call Taliu
+                  </button>
+                )}
+                {welcomeQuestions.map((q) => (
+                  <button
+                    key={q}
+                    className="suggestion-chip"
+                    onClick={() => sendMessage(q)}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <MessageBubble
+              key={i}
+              message={msg}
+              onSuggest={!isStreaming && i === messages.length - 1 ? sendMessage : undefined}
+            />
+          ))}
+
+          {error && <div className="error-message">{error}</div>}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {isLimitReached && (
+          <div className="limit-banner">
+            enjoyed talking? let's connect directly →{" "}
+            <a href="mailto:hi@atoue.io">hi@atoue.io</a>
+            {" · "}
+            <a href="https://linkedin.com/in/fransiskusbudi/" target="_blank" rel="noopener noreferrer">
+              linkedin
+            </a>
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <MessageBubble
-            key={i}
-            message={msg}
-            onSuggest={!isStreaming && i === messages.length - 1 ? sendMessage : undefined}
-          />
-        ))}
-
-        {error && <div className="error-message">{error}</div>}
-
-        <div ref={messagesEndRef} />
+        <InputBar onSend={sendMessage} disabled={isStreaming} isLimitReached={isLimitReached} />
       </div>
-
-      {isLimitReached && (
-        <div className="limit-banner">
-          enjoyed talking? let's connect directly →{" "}
-          <a href="mailto:hi@atoue.io">hi@atoue.io</a>
-          {" · "}
-          <a href="https://linkedin.com/in/fransiskusbudi/" target="_blank" rel="noopener noreferrer">
-            linkedin
-          </a>
-        </div>
-      )}
-
-      <InputBar onSend={sendMessage} disabled={isStreaming} isLimitReached={isLimitReached} />
     </div>
   );
 }

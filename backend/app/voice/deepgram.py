@@ -26,7 +26,7 @@ class DeepgramSTT:
             model="nova-3",
             encoding="linear16",
             sample_rate=16000,
-            endpointing=600,
+            endpointing=300,
         )
         self._socket = await self._cm.__aenter__()
         self._listen_task = asyncio.create_task(self._receive_loop())

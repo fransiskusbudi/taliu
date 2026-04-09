@@ -61,13 +61,22 @@
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   max-width: 768px;
   margin: 0 auto;
   background: var(--bg-primary);
   font-family: 'Sora', sans-serif;
   color: var(--text-primary);
   transition: background 0.3s ease, color 0.3s ease;
+  position: relative;
+}
+
+.chat-body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* ===== Header ===== */
@@ -554,20 +563,22 @@
 
 /* ===== Call Overlay ===== */
 .call-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: var(--bg-primary);
-  z-index: 100;
+  z-index: 10;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  border-radius: inherit;
 }
 
 .call-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  flex: 1;
+  justify-content: center;
 }
 
 /* Pulse circle with avatar */
@@ -599,12 +610,27 @@
 
 .call-pulse--speaking .call-pulse-ring {
   border-color: var(--text-primary);
-  animation-duration: 1s;
+  animation-duration: 1.2s;
+}
+
+/* idle / processing: no expanding rings, just a soft glow */
+.call-pulse:not(.call-pulse--listening):not(.call-pulse--speaking) .call-pulse-ring {
+  animation: none;
+  opacity: 0;
+}
+
+.call-pulse:not(.call-pulse--listening):not(.call-pulse--speaking) .call-avatar {
+  animation: subtle-glow 2s ease-in-out infinite;
 }
 
 @keyframes pulse-ring {
   0%   { transform: scale(0.8); opacity: 0.6; }
   100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes subtle-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.05); }
+  50%      { box-shadow: 0 0 20px 4px rgba(255, 255, 255, 0.1); }
 }
 
 .call-avatar {
@@ -622,44 +648,56 @@
   letter-spacing: 0.1em;
 }
 
-/* Status text */
-.call-status-text {
-  font-size: 0.85rem;
-  font-weight: 300;
-  color: var(--text-secondary);
-  letter-spacing: 0.05em;
-  text-align: center;
-  min-height: 1.2em;
-}
-
-/* Call action buttons */
-.call-actions {
+/* ---- Bottom bar ---- */
+.call-bottom {
+  padding: 32px;
   display: flex;
-  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
 }
 
 .call-btn {
-  padding: 12px 28px;
-  border-radius: 999px;
-  font-family: 'Sora', sans-serif;
-  font-size: 0.8rem;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  cursor: pointer;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
   border: none;
-  transition: opacity 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .call-btn:hover {
-  opacity: 0.85;
+  transform: scale(1.06);
 }
 
 .call-btn--end {
-  background: #e53e3e;
+  background: #dc3545;
   color: #fff;
+  box-shadow: 0 0 16px rgba(220, 53, 69, 0.3);
+}
+
+.call-btn--end:hover {
+  box-shadow: 0 0 24px rgba(220, 53, 69, 0.5);
 }
 
 .call-btn--retry {
-  background: var(--button-bg);
-  color: var(--button-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.call-btn--retry:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.call-error-text {
+  font-size: 0.8rem;
+  font-weight: 300;
+  color: #ef4444;
+  text-align: center;
+  margin-top: 24px;
 }

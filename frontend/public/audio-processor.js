@@ -11,10 +11,14 @@ class MicProcessor extends AudioWorkletProcessor {
     const input = inputs[0]?.[0];
     if (!input || input.length === 0) return true;
 
-    // Convert Float32 [-1.0, 1.0] → Int16 [-32768, 32767]
+    // Boost gain by 2x to improve sensitivity for quieter voices
+    const gain = 2.0;
+
+    // Convert Float32 [-1.0, 1.0] → Int16 [-32768, 32767] with gain boost
     const int16 = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
-      int16[i] = Math.max(-32768, Math.min(32767, Math.round(input[i] * 32767)));
+      const amplified = input[i] * gain;
+      int16[i] = Math.max(-32768, Math.min(32767, Math.round(amplified * 32767)));
     }
 
     // Transfer ownership of the buffer to the main thread (zero-copy)

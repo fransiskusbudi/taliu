@@ -28,6 +28,8 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
   const micStreamRef = useRef<MediaStream | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
+  const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const cleanup = useCallback(() => {
     wsRef.current?.close();
@@ -47,6 +49,15 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
 
     nextPlayTimeRef.current = 0;
     setStatus("idle");
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    activeSourcesRef.current.forEach((src) => {
+      try { src.stop(); } catch { /* already stopped */ }
+    });
+    activeSourcesRef.current.clear();
+    nextPlayTimeRef.current = 0;
+    setIsSpeaking(false);
   }, []);
 
   /**
@@ -71,6 +82,15 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
     source.buffer = audioBuffer;
     source.connect(ctx.destination);
 
+    source.onended = () => {
+      activeSourcesRef.current.delete(source);
+      if (activeSourcesRef.current.size === 0) {
+        setIsSpeaking(false);
+      }
+    };
+    activeSourcesRef.current.add(source);
+    setIsSpeaking(true);
+
     const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
     source.start(startTime);
     nextPlayTimeRef.current = startTime + audioBuffer.duration;
@@ -82,7 +102,10 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
     // Request microphone permission
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false,
+      });
     } catch {
       setErrorMessage("Microphone access is required to call Taliu.");
       return;
@@ -133,9 +156,12 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
         try {
           const msg = JSON.parse(event.data) as
             | { type: "status"; value: VoiceStatus }
-            | { type: "error"; message: string };
+            | { type: "error"; message: string }
+            | { type: "interrupt" };
 
-          if (msg.type === "status") {
+          if (msg.type === "interrupt") {
+            stopPlayback();
+          } else if (msg.type === "status") {
             setStatus(msg.value);
           } else if (msg.type === "error") {
             if (msg.message === "limit_reached") {
@@ -165,11 +191,13 @@ export function useVoiceCall(onLimitReached: () => void): VoiceCallControls {
         cleanup();
       }
     };
-  }, [cleanup, schedulePCMChunk, onLimitReached]);
+  }, [cleanup, schedulePCMChunk, stopPlayback, onLimitReached]);
 
   const endCall = useCallback(() => {
     cleanup();
   }, [cleanup]);
 
-  return { status, errorMessage, startCall, endCall };
+  const effectiveStatus: VoiceStatus = isSpeaking && status === "listening" ? "speaking" : status;
+
+  return { status: effectiveStatus, errorMessage, startCall, endCall };
 }
