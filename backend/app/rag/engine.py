@@ -1,11 +1,12 @@
 """RAG engine: wires Qdrant retrieval + BM25 + OpenAI LLM via LlamaIndex."""
 
 from pathlib import Path
+from typing import Tuple
 
 import tiktoken
 from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
-from llama_index.core.chat_engine import CondensePlusContextChatEngine
+from llama_index.core.chat_engine import CondensePlusContextChatEngine, ContextChatEngine
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.retrievers.bm25 import BM25Retriever
@@ -28,16 +29,12 @@ token_counter = TokenCountingHandler(
 )
 
 
-def build_chat_engine() -> CondensePlusContextChatEngine:
-    """Build a LlamaIndex chat engine backed by hybrid (BM25 + semantic) retrieval."""
-
-    # Configure embedding model
+def _build_retriever() -> Tuple[QueryFusionRetriever, OpenAI]:
+    """Shared setup: embedding model, LLM, Qdrant + BM25 retriever."""
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small",
         api_key=settings.openai_api_key,
     )
-
-    # Configure LLM
     llm = OpenAI(
         model=settings.openai_model,
         api_key=settings.openai_api_key,
@@ -46,32 +43,20 @@ def build_chat_engine() -> CondensePlusContextChatEngine:
     Settings.llm = llm
     Settings.callback_manager = CallbackManager([token_counter])
 
-    # Connect to Qdrant (both sync and async clients for streaming support)
-    qdrant_client = QdrantClient(
-        host=settings.qdrant_host, port=settings.qdrant_port
-    )
-    async_qdrant_client = AsyncQdrantClient(
-        host=settings.qdrant_host, port=settings.qdrant_port
-    )
+    qdrant_client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+    async_qdrant_client = AsyncQdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
     vector_store = QdrantVectorStore(
         client=qdrant_client,
         aclient=async_qdrant_client,
         collection_name=settings.qdrant_collection,
     )
-
-    # Semantic retriever — Qdrant vector search
     index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
     vector_retriever = index.as_retriever(similarity_top_k=10)
 
-    # BM25 retriever — built from resume chunks loaded at startup
     chunks = parse_resume(str(RESUME_PATH))
-    nodes = [
-        TextNode(text=chunk.text, metadata=chunk.metadata)
-        for chunk in chunks
-    ]
+    nodes = [TextNode(text=chunk.text, metadata=chunk.metadata) for chunk in chunks]
     bm25_retriever = BM25Retriever.from_defaults(nodes=nodes, similarity_top_k=10)
 
-    # Fusion retriever — RRF merges and deduplicates both result sets
     retriever = QueryFusionRetriever(
         retrievers=[vector_retriever, bm25_retriever],
         similarity_top_k=10,
@@ -79,10 +64,14 @@ def build_chat_engine() -> CondensePlusContextChatEngine:
         mode="reciprocal_rerank",
         use_async=True,
     )
+    return retriever, llm
 
-    # Build chat engine with conversation memory
+
+def build_chat_engine() -> CondensePlusContextChatEngine:
+    """Text chat engine — condenses multi-turn questions before retrieval."""
+    retriever, llm = _build_retriever()
     memory = ChatMemoryBuffer.from_defaults(token_limit=3000)
-    chat_engine = CondensePlusContextChatEngine.from_defaults(
+    return CondensePlusContextChatEngine.from_defaults(
         retriever=retriever,
         llm=llm,
         memory=memory,
@@ -90,4 +79,15 @@ def build_chat_engine() -> CondensePlusContextChatEngine:
         verbose=False,
     )
 
-    return chat_engine
+
+def build_voice_chat_engine() -> ContextChatEngine:
+    """Voice chat engine — skips condense step for lower latency."""
+    retriever, llm = _build_retriever()
+    memory = ChatMemoryBuffer.from_defaults(token_limit=2000)
+    return ContextChatEngine.from_defaults(
+        retriever=retriever,
+        llm=llm,
+        memory=memory,
+        system_prompt=SYSTEM_PROMPT,
+        verbose=False,
+    )

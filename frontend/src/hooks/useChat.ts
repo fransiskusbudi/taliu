@@ -148,5 +148,7 @@ export function useChat() {
     sessionId.current = newId;
   }, []);
 
-  return { messages, isStreaming, error, isLimitReached, sendMessage, resetChat };
+  const markLimitReached = useCallback(() => setIsLimitReached(true), []);
+
+  return { messages, isStreaming, error, isLimitReached, sendMessage, resetChat, markLimitReached };
 }

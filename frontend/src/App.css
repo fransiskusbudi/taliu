@@ -68,6 +68,15 @@
   font-family: 'Sora', sans-serif;
   color: var(--text-primary);
   transition: background 0.3s ease, color 0.3s ease;
+  position: relative;
+}
+
+.chat-body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* ===== Header ===== */
@@ -474,4 +483,221 @@
   .message-bubble {
     max-width: 85%;
   }
+}
+
+/* ===== Call Header Button ===== */
+.call-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.call-header-btn:hover:not(:disabled) {
+  background: var(--chip-hover);
+  border-color: var(--text-secondary);
+}
+
+.call-header-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.call-header-btn-icon {
+  font-size: 0.85rem;
+}
+
+/* ===== Call Welcome Card ===== */
+.call-welcome-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 16px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  color: var(--text-primary);
+}
+
+.call-welcome-card:hover {
+  background: var(--chip-hover);
+  border-color: var(--text-secondary);
+}
+
+.call-welcome-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.call-welcome-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.call-welcome-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.call-welcome-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 300;
+}
+
+/* ===== Call Overlay ===== */
+.call-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-primary);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: inherit;
+}
+
+.call-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+}
+
+/* Pulse circle with avatar */
+.call-pulse {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-pulse-ring {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.call-pulse-ring--delay {
+  animation-delay: 1s;
+}
+
+.call-pulse--listening .call-pulse-ring {
+  border-color: var(--accent);
+}
+
+.call-pulse--speaking .call-pulse-ring {
+  border-color: var(--text-primary);
+  animation-duration: 1.2s;
+}
+
+/* idle / processing: no expanding rings, just a soft glow */
+.call-pulse:not(.call-pulse--listening):not(.call-pulse--speaking) .call-pulse-ring {
+  animation: none;
+  opacity: 0;
+}
+
+.call-pulse:not(.call-pulse--listening):not(.call-pulse--speaking) .call-avatar {
+  animation: subtle-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes subtle-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.05); }
+  50%      { box-shadow: 0 0 20px 4px rgba(255, 255, 255, 0.1); }
+}
+
+.call-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  color: var(--avatar-text);
+  font-family: 'DM Mono', monospace;
+  font-size: 2.5rem;
+  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.1em;
+}
+
+/* ---- Bottom bar ---- */
+.call-bottom {
+  padding: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.call-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.call-btn:hover {
+  transform: scale(1.06);
+}
+
+.call-btn--end {
+  background: #dc3545;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(220, 53, 69, 0.3);
+}
+
+.call-btn--end:hover {
+  box-shadow: 0 0 24px rgba(220, 53, 69, 0.5);
+}
+
+.call-btn--retry {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.call-btn--retry:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.call-error-text {
+  font-size: 0.8rem;
+  font-weight: 300;
+  color: #ef4444;
+  text-align: center;
+  margin-top: 24px;
 }

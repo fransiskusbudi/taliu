@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     log_level: str = "info"
     database_url: str = "postgresql://taliu:taliu@postgres:5432/taliu"
     message_limit: int = 10
+    deepgram_api_key: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
