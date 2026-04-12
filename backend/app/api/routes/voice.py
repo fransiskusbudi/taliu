@@ -69,7 +69,7 @@ async def voice_endpoint(
         ip = websocket.client.host if websocket.client else "unknown"
         user_agent = websocket.headers.get("user-agent", "")
 
-        await get_or_create_session(pool, session_id, ip, user_agent)
+        await get_or_create_session(pool, session_id, ip, user_agent, channel="voice")
 
         if await check_limit(pool, session_id, settings.message_limit):
             await websocket.send_text(json.dumps({"type": "error", "message": "limit_reached"}))
@@ -96,6 +96,7 @@ async def voice_endpoint(
     openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
     cancel_tts = asyncio.Event()
     ws_closed = False
+    audio_bytes_count = 0
 
     async def safe_send_text(data: str) -> None:
         if not ws_closed:
@@ -119,7 +120,7 @@ async def voice_endpoint(
 
     async def audio_forwarder() -> None:
         """Forward mic audio from WebSocket to Deepgram."""
-        nonlocal ws_closed
+        nonlocal ws_closed, audio_bytes_count
         try:
             while True:
                 try:
@@ -140,6 +141,7 @@ async def voice_endpoint(
                 audio_bytes = data.get("bytes")
                 if audio_bytes:
                     await dg.send(audio_bytes)
+                    audio_bytes_count += len(audio_bytes)
 
         except WebSocketDisconnect:
             ws_closed = True
@@ -162,6 +164,8 @@ async def voice_endpoint(
             await send_status("processing")
 
             full_response = ""
+            turn_tts_characters = 0
+            turn_audio_bytes_start = audio_bytes_count
             start_time = time.monotonic()
             t0 = start_time
 
@@ -185,7 +189,7 @@ async def voice_endpoint(
                     return audio
 
                 async def llm_producer() -> None:
-                    nonlocal full_response
+                    nonlocal full_response, turn_tts_characters
                     sentence_buf = SentenceBuffer(min_chars=20)
                     first_token = True
                     async for chunk in stream:
@@ -202,10 +206,12 @@ async def voice_endpoint(
                         for sentence in sentence_buf.feed(token):
                             if cancel_tts.is_set():
                                 break
+                            turn_tts_characters += len(sentence)
                             task = asyncio.create_task(fetch_tts(sentence))
                             await tts_queue.put((sentence, task))
                     remaining = sentence_buf.flush()
                     if remaining and not cancel_tts.is_set():
+                        turn_tts_characters += len(remaining)
                         task = asyncio.create_task(fetch_tts(remaining))
                         await tts_queue.put((remaining, task))
                     await tts_queue.put(None)
@@ -290,6 +296,8 @@ async def voice_endpoint(
                     prompt_tokens=None,
                     completion_tokens=None,
                     model=settings.openai_model,
+                    tts_characters=turn_tts_characters,
+                    audio_duration_ms=int((audio_bytes_count - turn_audio_bytes_start) / 32),
                 )
 
             if await check_limit(pool, session_id, settings.message_limit):

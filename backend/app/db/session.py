@@ -8,19 +8,21 @@ async def get_or_create_session(
     session_id: str,
     ip_address: str,
     user_agent: str,
+    channel: str = "text",
 ) -> None:
     """Upsert session row and update last_active_at."""
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO sessions (id, ip_address, user_agent)
-            VALUES ($1, $2, $3)
+            INSERT INTO sessions (id, ip_address, user_agent, channel)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (id) DO UPDATE
             SET last_active_at = NOW()
             """,
             session_id,
             ip_address,
             user_agent,
+            channel,
         )
 
 
@@ -55,6 +57,8 @@ async def save_messages(
     prompt_tokens: int | None,
     completion_tokens: int | None,
     model: str | None,
+    tts_characters: int | None = None,
+    audio_duration_ms: int | None = None,
 ) -> None:
     """Save user and assistant messages and increment message_count."""
     async with pool.acquire() as conn:
@@ -69,8 +73,8 @@ async def save_messages(
             )
             await conn.execute(
                 """
-                INSERT INTO messages (session_id, role, content, latency_ms, prompt_tokens, completion_tokens, model)
-                VALUES ($1, 'assistant', $2, $3, $4, $5, $6)
+                INSERT INTO messages (session_id, role, content, latency_ms, prompt_tokens, completion_tokens, model, tts_characters, audio_duration_ms)
+                VALUES ($1, 'assistant', $2, $3, $4, $5, $6, $7, $8)
                 """,
                 session_id,
                 assistant_content,
@@ -78,6 +82,8 @@ async def save_messages(
                 prompt_tokens,
                 completion_tokens,
                 model,
+                tts_characters,
+                audio_duration_ms,
             )
             await conn.execute(
                 "UPDATE sessions SET message_count = message_count + 1 WHERE id = $1",

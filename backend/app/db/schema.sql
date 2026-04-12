@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     last_active_at TIMESTAMPTZ DEFAULT NOW(),
     message_count INTEGER DEFAULT 0,
     user_agent TEXT,
-    ip_address VARCHAR
+    ip_address VARCHAR,
+    channel VARCHAR DEFAULT 'text'
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -16,5 +17,7 @@ CREATE TABLE IF NOT EXISTS messages (
     latency_ms INTEGER,
     prompt_tokens INTEGER,
     completion_tokens INTEGER,
-    model VARCHAR
+    model VARCHAR,
+    tts_characters INTEGER,
+    audio_duration_ms INTEGER
 );
