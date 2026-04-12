@@ -66,7 +66,11 @@ async def voice_endpoint(
 
     try:
         pool = websocket.app.state.db
-        ip = websocket.client.host if websocket.client else "unknown"
+        ip = (
+            websocket.headers.get("x-real-ip")
+            or websocket.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or (websocket.client.host if websocket.client else "unknown")
+        )
         user_agent = websocket.headers.get("user-agent", "")
 
         await get_or_create_session(pool, session_id, ip, user_agent, channel="voice")
