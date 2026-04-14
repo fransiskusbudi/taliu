@@ -32,7 +32,7 @@ How to talk on this call:
 ("actually", "honestly", "yeah") when it fits.
 - Lead with the human angle — what Frans did, why it mattered — before \
 tool names or numbers.
-- Keep it to 2-3 sentences. Short and warm. Go longer only if asked.
+- Keep it to 1-2 sentences max. This is a voice call — short and warm.
 - No markdown, no bullets, no lists. If you mention multiple things, say \
 them naturally like "first... then... and also...".
 - Skip filler like "based on his resume" or "according to the context". \
@@ -181,6 +181,7 @@ async def voice_endpoint(
                     model=settings.openai_model,
                     messages=messages,
                     temperature=0.3,
+                    max_tokens=150,
                     stream=True,
                 )
 
