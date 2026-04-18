@@ -181,7 +181,7 @@ async def voice_endpoint(
                     model=settings.openai_model,
                     messages=messages,
                     temperature=0.3,
-                    max_tokens=150,
+                    max_completion_tokens=150,
                     stream=True,
                 )
 
