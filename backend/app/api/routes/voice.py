@@ -125,6 +125,8 @@ async def voice_endpoint(
     async def audio_forwarder() -> None:
         """Forward mic audio from WebSocket to Deepgram."""
         nonlocal ws_closed, audio_bytes_count
+        last_log_time = time.monotonic()
+        last_log_bytes = 0
         try:
             while True:
                 try:
@@ -146,6 +148,14 @@ async def voice_endpoint(
                 if audio_bytes:
                     await dg.send(audio_bytes)
                     audio_bytes_count += len(audio_bytes)
+
+                    # Periodic mic throughput log (every 5s)
+                    now = time.monotonic()
+                    if now - last_log_time >= 5.0:
+                        delta_kb = (audio_bytes_count - last_log_bytes) / 1024
+                        logger.info(f"[mic] {delta_kb:.1f}KB in last 5s")
+                        last_log_time = now
+                        last_log_bytes = audio_bytes_count
 
         except WebSocketDisconnect:
             ws_closed = True

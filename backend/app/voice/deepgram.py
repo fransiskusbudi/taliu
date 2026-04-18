@@ -38,10 +38,22 @@ class DeepgramSTT:
         try:
             async for message in self._socket:
                 if isinstance(message, ListenV1Results):
-                    if message.speech_final:
-                        transcript = message.channel.alternatives[0].transcript
-                        if transcript and transcript.strip():
+                    transcript = message.channel.alternatives[0].transcript
+                    is_final = getattr(message, "is_final", False)
+                    speech_final = getattr(message, "speech_final", False)
+                    if transcript and transcript.strip():
+                        logger.info(
+                            f"[dg] transcript={transcript!r} "
+                            f"is_final={is_final} speech_final={speech_final}"
+                        )
+                        if speech_final:
                             await self._transcript_queue.put(transcript)
+                    else:
+                        # Log empty results too — helps diagnose silence detection
+                        if is_final or speech_final:
+                            logger.info(
+                                f"[dg] empty result is_final={is_final} speech_final={speech_final}"
+                            )
         except asyncio.CancelledError:
             pass
         except Exception as e:
