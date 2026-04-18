@@ -32,10 +32,10 @@ class DeepgramSTT:
         self._cm = self._client.listen.v1.connect(
             model="nova-3",
             encoding="linear16",
-            sample_rate=16000,
-            endpointing=settings.deepgram_endpointing_ms,
-            interim_results=True,
-            utterance_end_ms=settings.deepgram_utterance_end_ms,
+            sample_rate="16000",
+            endpointing=str(settings.deepgram_endpointing_ms),
+            interim_results="true",
+            utterance_end_ms=str(settings.deepgram_utterance_end_ms),
         )
         self._socket = await self._cm.__aenter__()
         self._listen_task = asyncio.create_task(self._receive_loop())
