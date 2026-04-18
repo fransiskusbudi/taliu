@@ -189,7 +189,7 @@ async def voice_endpoint(
 
                 async def fetch_tts(text: str) -> bytes:
                     audio = b""
-                    async for chunk in stream_tts(text, settings.openai_api_key):
+                    async for chunk in stream_tts(text, settings.gemini_api_key):
                         audio += chunk
                     return audio
 
