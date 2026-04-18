@@ -187,11 +187,15 @@ async def voice_endpoint(
 
                 tts_queue: asyncio.Queue = asyncio.Queue()
 
-                async def fetch_tts(text: str) -> bytes:
-                    audio = b""
-                    async for chunk in stream_tts(text, settings.gemini_api_key):
-                        audio += chunk
-                    return audio
+                async def stream_tts_to_queue(text: str, audio_queue: asyncio.Queue) -> None:
+                    """Stream TTS chunks into a per-sentence queue as they arrive."""
+                    try:
+                        async for chunk in stream_tts(text):
+                            if cancel_tts.is_set():
+                                return
+                            await audio_queue.put(chunk)
+                    finally:
+                        await audio_queue.put(None)
 
                 async def llm_producer() -> None:
                     nonlocal full_response, turn_tts_characters
@@ -212,13 +216,15 @@ async def voice_endpoint(
                             if cancel_tts.is_set():
                                 break
                             turn_tts_characters += len(sentence)
-                            task = asyncio.create_task(fetch_tts(sentence))
-                            await tts_queue.put((sentence, task))
+                            audio_queue: asyncio.Queue = asyncio.Queue()
+                            task = asyncio.create_task(stream_tts_to_queue(sentence, audio_queue))
+                            await tts_queue.put((sentence, task, audio_queue))
                     remaining = sentence_buf.flush()
                     if remaining and not cancel_tts.is_set():
                         turn_tts_characters += len(remaining)
-                        task = asyncio.create_task(fetch_tts(remaining))
-                        await tts_queue.put((remaining, task))
+                        audio_queue = asyncio.Queue()
+                        task = asyncio.create_task(stream_tts_to_queue(remaining, audio_queue))
+                        await tts_queue.put((remaining, task, audio_queue))
                     await tts_queue.put(None)
 
                 async def audio_sender() -> None:
@@ -226,28 +232,36 @@ async def voice_endpoint(
                         item = await tts_queue.get()
                         if item is None:
                             break
-                        sentence, task = item
+                        sentence, task, audio_queue = item
                         if cancel_tts.is_set():
                             task.cancel()
                             continue
 
-                        # Wait for TTS, but abort immediately on cancel
-                        cancel_wait = asyncio.ensure_future(cancel_tts.wait())
-                        done, _ = await asyncio.wait(
-                            [task, cancel_wait], return_when=asyncio.FIRST_COMPLETED,
-                        )
-                        cancel_wait.cancel()
-                        if cancel_tts.is_set():
-                            task.cancel()
-                            continue
+                        first_chunk = True
+                        while True:
+                            # Race: next chunk vs cancel
+                            get_task = asyncio.ensure_future(audio_queue.get())
+                            cancel_wait = asyncio.ensure_future(cancel_tts.wait())
+                            done, _ = await asyncio.wait(
+                                [get_task, cancel_wait], return_when=asyncio.FIRST_COMPLETED,
+                            )
+                            cancel_wait.cancel()
 
-                        audio_data = task.result()
-                        logger.info(f"[voice] TTS '{sentence[:40]}': {(time.monotonic() - t0) * 1000:.0f}ms")
-                        await send_status("speaking")
-                        for i in range(0, len(audio_data), 4096):
                             if cancel_tts.is_set():
+                                get_task.cancel()
+                                task.cancel()
                                 break
-                            await safe_send_bytes(audio_data[i : i + 4096])
+
+                            chunk_bytes = get_task.result()
+                            if chunk_bytes is None:
+                                break
+
+                            if first_chunk:
+                                logger.info(f"[voice] TTS first chunk '{sentence[:40]}': {(time.monotonic() - t0) * 1000:.0f}ms")
+                                await send_status("speaking")
+                                first_chunk = False
+
+                            await safe_send_bytes(chunk_bytes)
 
                 # Race: response pipeline vs next user transcript (barge-in)
                 async def respond() -> None:

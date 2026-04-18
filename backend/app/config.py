@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://taliu:taliu@postgres:5432/taliu"
     message_limit: int = 10
     deepgram_api_key: str = ""
+
+    # TTS provider: "openai" | "gemini"
+    tts_provider: str = "openai"
+    openai_tts_model: str = "tts-1"
+    openai_tts_voice: str = "alloy"
     gemini_api_key: str = ""
     gemini_tts_model: str = "gemini-3.1-flash-tts-preview"
     gemini_tts_voice: str = "Kore"
