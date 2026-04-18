@@ -7,6 +7,8 @@ from typing import Optional
 from deepgram import AsyncDeepgramClient
 from deepgram.listen.v1.types import ListenV1Results
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +28,7 @@ class DeepgramSTT:
             model="nova-3",
             encoding="linear16",
             sample_rate=16000,
-            endpointing=300,
+            endpointing=settings.deepgram_endpointing_ms,
         )
         self._socket = await self._cm.__aenter__()
         self._listen_task = asyncio.create_task(self._receive_loop())
