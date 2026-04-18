@@ -5,7 +5,10 @@ import logging
 from typing import Optional
 
 from deepgram import AsyncDeepgramClient
-from deepgram.listen.v1.types import ListenV1Results
+from deepgram.listen.v1.types import (
+    ListenV1Results,
+    ListenV1UtteranceEnd,
+)
 
 from app.config import settings
 
@@ -21,6 +24,8 @@ class DeepgramSTT:
         self._cm = None
         self._listen_task: Optional[asyncio.Task] = None
         self._transcript_queue: asyncio.Queue[str] = asyncio.Queue()
+        # Buffer of is_final=True segments awaiting utterance boundary
+        self._pending_segments: list[str] = []
 
     async def start(self) -> None:
         """Open the Deepgram WebSocket and start the receive loop."""
@@ -29,9 +34,22 @@ class DeepgramSTT:
             encoding="linear16",
             sample_rate=16000,
             endpointing=settings.deepgram_endpointing_ms,
+            interim_results=True,
+            utterance_end_ms=settings.deepgram_utterance_end_ms,
         )
         self._socket = await self._cm.__aenter__()
         self._listen_task = asyncio.create_task(self._receive_loop())
+
+    def _flush_pending(self, reason: str) -> Optional[str]:
+        """Join and clear pending segments. Returns the joined transcript or None."""
+        if not self._pending_segments:
+            return None
+        full = " ".join(self._pending_segments).strip()
+        self._pending_segments = []
+        if full:
+            logger.info(f"[dg] flush ({reason}): {full!r}")
+            return full
+        return None
 
     async def _receive_loop(self) -> None:
         """Background task: read messages from Deepgram and queue final transcripts."""
@@ -41,19 +59,24 @@ class DeepgramSTT:
                     transcript = message.channel.alternatives[0].transcript
                     is_final = getattr(message, "is_final", False)
                     speech_final = getattr(message, "speech_final", False)
+
                     if transcript and transcript.strip():
                         logger.info(
                             f"[dg] transcript={transcript!r} "
                             f"is_final={is_final} speech_final={speech_final}"
                         )
+                        if is_final:
+                            self._pending_segments.append(transcript.strip())
                         if speech_final:
-                            await self._transcript_queue.put(transcript)
-                    else:
-                        # Log empty results too — helps diagnose silence detection
-                        if is_final or speech_final:
-                            logger.info(
-                                f"[dg] empty result is_final={is_final} speech_final={speech_final}"
-                            )
+                            flushed = self._flush_pending("speech_final")
+                            if flushed:
+                                await self._transcript_queue.put(flushed)
+
+                elif isinstance(message, ListenV1UtteranceEnd):
+                    flushed = self._flush_pending("utterance_end")
+                    if flushed:
+                        await self._transcript_queue.put(flushed)
+
         except asyncio.CancelledError:
             pass
         except Exception as e:

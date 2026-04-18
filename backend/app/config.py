@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     message_limit: int = 10
     deepgram_api_key: str = ""
     deepgram_endpointing_ms: int = 600
+    deepgram_utterance_end_ms: int = 1000
 
     # TTS provider: "openai" | "gemini"
     tts_provider: str = "openai"
