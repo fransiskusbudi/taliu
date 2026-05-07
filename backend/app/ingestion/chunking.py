@@ -114,3 +114,41 @@ def _parse_technologies(section: str) -> ResumeChunk:
             "profile_id": "frans",
         },
     )
+
+
+def parse_knowledge_file(filepath: str) -> list[ResumeChunk]:
+    """Parse non-resume knowledge files (faq, stories, projects, philosophy, status).
+
+    Splits on level-2 headers — each `## Heading` section becomes one chunk.
+    The file name (without .md) becomes the `section` metadata; the heading
+    becomes the `topic`. Skips the projects.md "Template" section.
+    """
+    content = Path(filepath).read_text(encoding="utf-8")
+    file_name = Path(filepath).stem
+
+    chunks: list[ResumeChunk] = []
+    sections = re.split(r"(?=^## )", content, flags=re.MULTILINE)
+
+    for section in sections:
+        section = section.strip()
+        if not section.startswith("## "):
+            continue
+
+        first_line = section.split("\n", 1)[0]
+        topic = first_line.removeprefix("## ").strip()
+
+        if topic.lower() == "template":
+            continue
+
+        chunks.append(
+            ResumeChunk(
+                text=section,
+                metadata={
+                    "section": file_name,
+                    "topic": topic,
+                    "profile_id": "frans",
+                },
+            )
+        )
+
+    return chunks
