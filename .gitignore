@@ -42,3 +42,7 @@ postgres_data/
 
 # Docs / planning
 docs/
+
+# Personal knowledge base — only resume.md is tracked
+backend/app/ingestion/data/*
+!backend/app/ingestion/data/resume.md
