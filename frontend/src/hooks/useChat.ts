@@ -13,22 +13,27 @@ function getOrCreateSessionId(): string {
 }
 
 export const QUESTION_POOL = [
+  // Status / who he is right now
   "What is Frans currently working on?",
-  "What are Frans's technical skills?",
-  "Tell me about his experience at Jet Commerce",
-  "What leadership experience does Frans have?",
-  "What AI tools has Frans worked with?",
-  "What is Frans's experience with RAG systems?",
-  "How does Frans approach data architecture?",
-  "Has Frans managed a team before?",
-  "What programming languages does Frans use?",
-  "What is Frans's experience with Python?",
+  "What is Frans looking for next?",
+  "Where is Frans based and is he open to relocation?",
+  "What's Frans's strongest technical skill?",
+  // Project deep-dives
   "What did Frans build at Brainzyme?",
-  "What data infrastructure did Frans create at Jet Commerce?",
-  "What is Frans's experience with n8n and workflow automation?",
-  "What predictive modeling has Frans done?",
-  "What is Frans's background in e-commerce analytics?",
-  "What tools did Frans use for ETL and data pipelines?",
+  "Tell me about the AI audit layer Frans built",
+  "How did Frans grow Brainzyme's Pinterest channel?",
+  "What is Taliu and how was it built?",
+  "Tell me about his experience at Jet Commerce",
+  // Stories
+  "What's a tough technical decision Frans has made?",
+  "Tell me about a project that almost failed for Frans",
+  "What is Frans most proud of in his career?",
+  // Philosophy / how he works
+  "How does Frans approach testing?",
+  "How does Frans use AI in his own workflow?",
+  "How does Frans balance shipping fast vs building right?",
+  // Resume basics
+  "What programming languages does Frans use?",
 ];
 
 function pickSuggestions(lastQuestion: string): string[] {
