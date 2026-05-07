@@ -18,7 +18,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 INACTIVITY_TIMEOUT = 30.0  # seconds — close call after 30s of silence
-RESUME_PATH = Path(__file__).parents[2] / "ingestion" / "data" / "resume.md"
+DATA_DIR = Path(__file__).parents[2] / "ingestion" / "data"
 
 VOICE_SYSTEM_PROMPT = """\
 You are Taliu — Frans's friendly AI agent on a voice call. You're chatting \
@@ -35,24 +35,39 @@ more detail, they'll ask.
 - Use contractions ("he's", "there's", "I'd") and natural speech.
 - Speak in third person — you're the agent, not Frans himself.
 - No markdown, no bullets, no lists.
-- Skip filler like "based on his resume" or "according to the context".
+- Skip filler like "based on his knowledge base" or "according to the context".
 
 ## When you don't know
-- Not in the resume: "Hmm, I don't actually know that one."
+- Not in the knowledge below: "Hmm, I don't actually know that one."
 - Off-topic: "I'm really here to chat about Frans's work."
 
 ## End with a hook (sometimes)
 After answering, occasionally offer to go deeper: "Want me to tell you more?" \
 Keep it to one short question.
 
-Frans's Resume:
-{resume}
+## Knowledge about Frans
+
+The sections below are Frans's authoritative knowledge base — resume, FAQ, \
+stories, project deep-dives, working philosophy, and current status. \
+Ground every answer in this content.
+
+{knowledge}
 """
 
 
 def _load_system_prompt() -> str:
-    resume_text = RESUME_PATH.read_text()
-    return VOICE_SYSTEM_PROMPT.format(resume=resume_text)
+    """Concatenate every .md file in the data dir into one knowledge block.
+
+    Sorted order keeps the prefix stable across requests so OpenAI's prompt
+    cache stays warm.
+    """
+    sections: list[str] = []
+    for md_file in sorted(DATA_DIR.glob("*.md")):
+        sections.append(
+            f"### {md_file.stem.upper()}\n\n{md_file.read_text(encoding='utf-8')}"
+        )
+    knowledge = "\n\n---\n\n".join(sections)
+    return VOICE_SYSTEM_PROMPT.format(knowledge=knowledge)
 
 
 # Load once at import time

@@ -17,10 +17,11 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import AsyncQdrantClient, QdrantClient
 
 from app.config import settings
-from app.ingestion.chunking import parse_resume
+from app.ingestion.chunking import parse_knowledge_file, parse_resume
 from app.rag.prompt import SYSTEM_PROMPT
 
-RESUME_PATH = Path(__file__).parents[1] / "ingestion" / "data" / "resume.md"
+DATA_DIR = Path(__file__).parents[1] / "ingestion" / "data"
+RESUME_PATH = DATA_DIR / "resume.md"
 
 # Module-level token counter — reset before each request, read after
 token_counter = TokenCountingHandler(
@@ -54,6 +55,10 @@ def _build_retriever() -> Tuple[QueryFusionRetriever, OpenAI]:
     vector_retriever = index.as_retriever(similarity_top_k=10)
 
     chunks = parse_resume(str(RESUME_PATH))
+    for md_file in sorted(DATA_DIR.glob("*.md")):
+        if md_file.name == "resume.md":
+            continue
+        chunks.extend(parse_knowledge_file(str(md_file)))
     nodes = [TextNode(text=chunk.text, metadata=chunk.metadata) for chunk in chunks]
     bm25_retriever = BM25Retriever.from_defaults(nodes=nodes, similarity_top_k=10)
 
