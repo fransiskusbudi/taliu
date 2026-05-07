@@ -52,6 +52,7 @@ export function ChatWindow() {
     <div className="chat-container">
       <header className="chat-header">
         <div className="chat-header-left">
+          <a className="brand-back" href="https://atoue.io">← atoue.io</a>
           <h1>taliu</h1>
           <p>get to know Frans — ask me anything</p>
         </div>

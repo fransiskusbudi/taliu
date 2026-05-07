@@ -88,6 +88,22 @@
   border-bottom: 1px solid var(--border);
 }
 
+.brand-back {
+  display: inline-block;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  text-decoration: none;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+  transition: color 0.2s ease;
+}
+
+.brand-back:hover {
+  color: var(--text-primary);
+}
+
 .chat-header-left h1 {
   font-family: 'DM Mono', monospace;
   font-size: 1.1rem;
