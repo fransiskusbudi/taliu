@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Sora:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        background: #0a0a0a;
+        color: #e8e8e8;
+        font-family: "Sora", sans-serif;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      .grain {
+        position: fixed;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 100;
+      }
+      .stack {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .wordmark {
+        font-family: "DM Mono", monospace;
+        font-weight: 300;
+        font-size: 180px;
+        letter-spacing: 0.3em;
+        text-transform: lowercase;
+        line-height: 1;
+        background: linear-gradient(135deg, #e8e8e8 0%, #888 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        /* the 0.3em right-margin on the last glyph makes the word visually
+           uncentered — nudge it back left by half that amount */
+        padding-right: 0;
+        margin-left: 0.15em;
+      }
+      .tagline {
+        font-family: "Sora", sans-serif;
+        font-weight: 300;
+        font-size: 38px;
+        letter-spacing: 0.02em;
+        color: #888;
+        margin-top: 40px;
+      }
+      .attribution {
+        position: absolute;
+        bottom: 56px;
+        right: 80px;
+        font-family: "DM Mono", monospace;
+        font-weight: 300;
+        font-size: 22px;
+        color: #666;
+        letter-spacing: 0.02em;
+        z-index: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grain"></div>
+    <div class="stack">
+      <div class="wordmark">taliu</div>
+      <p class="tagline">get to know Frans</p>
+    </div>
+    <span class="attribution">atoue.io ↗</span>
+  </body>
+</html>
