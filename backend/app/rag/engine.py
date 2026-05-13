@@ -39,7 +39,7 @@ def _build_retriever() -> Tuple[QueryFusionRetriever, OpenAI]:
     llm = OpenAI(
         model=settings.openai_model,
         api_key=settings.openai_api_key,
-        temperature=0.3,
+        temperature=0.7,
     )
     Settings.llm = llm
     Settings.callback_manager = CallbackManager([token_counter])
