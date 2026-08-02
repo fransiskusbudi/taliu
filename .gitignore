@@ -50,3 +50,6 @@ backend/app/ingestion/data/*
 # Claude Code
 CLAUDE.md
 .claude/
+
+# Backups
+*.bak

@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-5.4-mini"
+    openai_base_url: str = ""  # LLM base URL override (e.g. DeepSeek: https://api.deepseek.com/v1)
+    deepseek_api_key: str = ""  # used for the chat LLM when set (embeddings/TTS stay on OpenAI)
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
     qdrant_collection: str = "resume_chunks"

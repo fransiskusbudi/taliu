@@ -121,7 +121,10 @@ async def voice_endpoint(
             pass
         return
 
-    openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+    openai_client = AsyncOpenAI(
+        api_key=settings.deepseek_api_key or settings.openai_api_key,
+        base_url=settings.openai_base_url or None,
+    )
     cancel_tts = asyncio.Event()
     ws_closed = False
     audio_bytes_count = 0
