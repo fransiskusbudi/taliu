@@ -12,7 +12,7 @@ from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.retrievers.bm25 import BM25Retriever
 from llama_index.core.schema import TextNode
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai_like import OpenAILike
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import AsyncQdrantClient, QdrantClient
 
@@ -30,15 +30,17 @@ token_counter = TokenCountingHandler(
 )
 
 
-def _build_retriever() -> Tuple[QueryFusionRetriever, OpenAI]:
+def _build_retriever() -> Tuple[QueryFusionRetriever, OpenAILike]:
     """Shared setup: embedding model, LLM, Qdrant + BM25 retriever."""
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small",
         api_key=settings.openai_api_key,
     )
-    llm = OpenAI(
+    llm = OpenAILike(
         model=settings.openai_model,
-        api_key=settings.openai_api_key,
+        api_key=settings.deepseek_api_key or settings.openai_api_key,
+        api_base=settings.openai_base_url or "https://api.openai.com/v1",
+        is_chat_model=True,
         temperature=1.0,
     )
     Settings.llm = llm
