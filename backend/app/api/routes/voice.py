@@ -231,6 +231,9 @@ async def voice_endpoint(
                             if cancel_tts.is_set():
                                 return
                             await audio_queue.put(chunk)
+                    except Exception as e:
+                        logger.error(f"[voice] TTS failed: {e}", exc_info=True)
+                        await send_error("tts_failed")
                     finally:
                         await audio_queue.put(None)
 

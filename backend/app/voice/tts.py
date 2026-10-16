@@ -57,7 +57,11 @@ _openai_client: AsyncOpenAI | None = None
 def _get_openai_client() -> AsyncOpenAI:
     global _openai_client
     if _openai_client is None:
-        _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # Pin base_url: the SDK otherwise picks up OPENAI_BASE_URL (DeepSeek), which has no TTS
+        _openai_client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            base_url="https://api.openai.com/v1",
+        )
     return _openai_client
 
 
